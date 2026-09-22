@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SubPulse - Subscription & Renewal Tracker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.4);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.7);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .light .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+
+        .badge-pulse {
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col transition-colors duration-300 light:bg-slate-50 light:text-slate-800">
+
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md light:bg-white/80 light:border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-brand-500/20">
+                    <i class="fa-solid fa-bell-ring text-lg"></i>
+                </div>
+                <div>
+                    <span class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-brand-400 bg-clip-text text-transparent light:from-slate-900 light:to-brand-600">SubPulse</span>
+                    <span class="hidden sm:inline-block text-xs px-2 py-0.5 ml-2 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 font-medium">PWA Ready</span>
+                </div>
+            </div>
+
+            <!-- Top Header Action Controls -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <!-- Global Currency Picker -->
+                <div class="relative">
+                    <select id="globalCurrency" onchange="updateCurrencySymbol(this.value)" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs sm:text-sm rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-brand-500 cursor-pointer light:bg-slate-100 light:border-slate-300 light:text-slate-700">
+                        <option value="$">USD ($)</option>
+                        <option value="₹">INR (₹)</option>
+                        <option value="€">EUR (€)</option>
+                        <option value="£">GBP (£)</option>
+                    </select>
+                </div>
+
+                <!-- Dark/Light Theme Switcher -->
+                <button onclick="toggleTheme()" class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors light:bg-slate-100 light:border-slate-200 light:text-slate-600 light:hover:text-slate-900" title="Toggle Theme">
+                    <i id="themeIcon" class="fa-solid fa-moon text-sm"></i>
+                </button>
+
+                <!-- Data Backup Modal Opener -->
+                <button onclick="openBackupModal()" class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors light:bg-slate-100 light:border-slate-200 light:text-slate-600 light:hover:text-slate-900" title="Export/Import Backup">
+                    <i class="fa-solid fa-database text-sm"></i>
+                </button>
+
+                <!-- Primary Add Button -->
+                <button onclick="openModal()" class="bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs sm:text-sm px-3.5 py-2 rounded-xl shadow-lg shadow-brand-600/30 flex items-center space-x-1.5 transition-all duration-200 active:scale-95">
+                    <i class="fa-solid fa-plus"></i>
+                    <span class="hidden sm:inline">Add Subscription</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Body -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Notification Permission Status Banner -->
+        <div id="notificationBanner" class="hidden rounded-xl bg-amber-500/10 border border-amber-500/30 p-4 flex items-center justify-between text-amber-200 light:text-amber-800 light:bg-amber-50">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-triangle-exclamation text-amber-400 text-lg"></i>
+                <div class="text-xs sm:text-sm">
+                    <p class="font-semibold">Enable System Notifications</p>
+                    <p class="text-amber-300/80 light:text-amber-700">Allow notifications so SubPulse can alert you before subscriptions renew.</p>
+                </div>
+            </div>
+            <button onclick="requestNotificationPermission()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors shrink-0">
+                Enable
+            </button>
+        </div>
+
+        <!-- Summary Statistics Section -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Total Monthly Spend Card -->
+            <div class="glass-card rounded-2xl p-5 relative overflow-hidden group hover:border-slate-700 transition-all">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider light:text-slate-500">Est. Monthly Spend</p>
+                        <h2 class="text-3xl font-extrabold mt-2 text-white light:text-slate-900" id="totalMonthlySpend">$0.00</h2>
+                        <p class="text-xs text-slate-400 mt-1 light:text-slate-500" id="yearlyEquivalent">Equal to $0.00 / year</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xl border border-indigo-500/20">
+                        <i class="fa-solid fa-wallet"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Subscriptions Count -->
+            <div class="glass-card rounded-2xl p-5 relative overflow-hidden group hover:border-slate-700 transition-all">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider light:text-slate-500">Active Services</p>
+                        <h2 class="text-3xl font-extrabold mt-2 text-white light:text-slate-900" id="activeCount">0</h2>
+                        <p class="text-xs text-slate-400 mt-1 light:text-slate-500" id="trialCount">0 trials active</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xl border border-emerald-500/20">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Renewing Soon Urgent Card -->
+            <div class="glass-card rounded-2xl p-5 relative overflow-hidden group hover:border-slate-700 transition-all">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider light:text-slate-500">Next 7 Days</p>
+                        <h2 class="text-3xl font-extrabold mt-2 text-rose-400 light:text-rose-600" id="upcomingCount">0</h2>
+                        <p class="text-xs text-slate-400 mt-1 light:text-slate-500" id="nextRenewalText">No immediate renewals</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center text-xl border border-rose-500/20">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Visual Category Breakdown section -->
+        <section class="glass-card rounded-2xl p-5">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <div>
+                    <h3 class="font-bold text-lg text-white light:text-slate-900">Spending Insights</h3>
+                    <p class="text-xs text-slate-400 light:text-slate-500">Breakdown of recurring expenses by category</p>
+                </div>
+                <!-- Category Legend List -->
+                <div id="categoryBadges" class="flex flex-wrap gap-2 text-xs">
+                    <!-- Dynamic badges populated here -->
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+                <div class="relative h-48 w-full flex items-center justify-center">
+                    <canvas id="spendChart"></canvas>
+                </div>
+                <div class="lg:col-span-2 space-y-3" id="categoryProgressList">
+                    <!-- Dynamic category progress bars -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Search & Category Filters Bar -->
+        <section class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80 light:bg-white light:border-slate-200">
+            <!-- Search Bar Input -->
+            <div class="relative flex-grow">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                <input type="text" id="searchInput" oninput="renderSubscriptions()" placeholder="Search subscriptions or notes..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 light:bg-slate-50 light:border-slate-300 light:text-slate-800">
+            </div>
+
+            <!-- Filter Controls Group -->
+            <div class="flex items-center space-x-2 overflow-x-auto pb-1 sm:pb-0">
+                <select id="filterCategory" onchange="renderSubscriptions()" class="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-brand-500 light:bg-slate-50 light:border-slate-300 light:text-slate-700">
+                    <option value="ALL">All Categories</option>
+                    <option value="Entertainment">Entertainment</option>
+                    <option value="Productivity">Productivity</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Health">Health</option>
+                    <option value="Work">Work</option>
+                    <option value="General">General</option>
+                </select>
+
+                <select id="filterStatus" onchange="renderSubscriptions()" class="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-brand-500 light:bg-slate-50 light:border-slate-300 light:text-slate-700">
+                    <option value="ALL">All Statuses</option>
+                    <option value="UPCOMING">Renewing Soon (&le;7 days)</option>
+                    <option value="TRIAL">Trial Active</option>
+                    <option value="MONTHLY">Monthly Billing</option>
+                    <option value="YEARLY">Yearly Billing</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Subscription List Cards Grid -->
+        <section id="subscriptionsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Dynamic subscription cards generated via JavaScript -->
+        </section>
+
+        <!-- Empty State View -->
+        <div id="emptyState" class="hidden flex-col items-center justify-center py-16 text-center glass-card rounded-2xl p-8">
+            <div class="w-16 h-16 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-500 text-2xl mb-4 light:bg-slate-200 light:text-slate-400">
+                <i class="fa-solid fa-receipt"></i>
+            </div>
+            <h3 class="text-lg font-bold text-white light:text-slate-900">No Subscriptions Found</h3>
+            <p class="text-xs text-slate-400 max-w-sm mt-1 mb-6 light:text-slate-500">You haven't added any subscriptions matching your criteria yet. Add your first service to begin tracking renewals.</p>
+            <button onclick="openModal()" class="bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all">
+                <i class="fa-solid fa-plus mr-1.5"></i> Add First Subscription
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Add / Edit Subscription Modal Window -->
+    <div id="subModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden light:bg-white light:border-slate-200">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center light:border-slate-200">
+                <h3 id="modalTitle" class="font-bold text-lg text-white light:text-slate-900">Add New Subscription</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition-colors light:hover:text-slate-800">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Form Body -->
+            <form id="subForm" onsubmit="saveSubscription(event)" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                <input type="hidden" id="subId">
+
+                <!-- Preset Fast Selector -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 light:text-slate-600">Quick Templates</label>
+                    <div class="flex items-center gap-2 overflow-x-auto pb-2" id="presetButtons">
+                        <!-- Fast presets like Netflix, Spotify dynamically inserted -->
+                    </div>
+                </div>
+
+                <!-- Subscription Name Input -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1 light:text-slate-700">Service Name *</label>
+                    <input type="text" id="subName" required placeholder="e.g. Netflix, Spotify, iCloud" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-brand-500 light:bg-slate-50 light:border-slate-300 light:text-slate-900">
+                </div>
+
+                <!-- Category & Billing Cycle row -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1 light:text-slate-700">Category</label>
+                        <select id="subCategory" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 light:bg-slate-50 light:border-slate-300 light:text-slate-900">
+                            <option value="Entertainment">Entertainment</option>
+                            <option value="Productivity">Productivity</option>
+                            <option value="Utilities">Utilities</option>
+                            <option value="Health">Health</option>
+                            <option value="Work">Work</option>
+                            <option value="General">General</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1 light:text-slate-700">Billing Cycle</label>
+                        <select id="subCycle" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 light:bg-slate-50 light:border-slate-300 light:text-slate-900">
+                            <option value="Monthly">Monthly</option>
+                            <option value="Yearly">Yearly</option>
+                            <option value="One-Time">One-Time Trial</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Price and Currency Row -->
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="col-span-2">
+                        <label class="block text-xs font-medium text-slate-300 mb-1 light:text-slate-700">Cost *</label>
+                        <input type="number" step="0.01" min="0" id="subCost" required placeholder="9.99" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-brand-500 light:bg-slate-50 light:border-slate-300 light:text-slate-900">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1 light:text-slate-700">Currency</label>
+                        <select id="subCurrency" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 light:bg-slate-50 light:border-slate-300 light:text-slate-900">
+                            <option value="$">$ (USD)</option>
+                            <option value="₹">₹ (INR)</option>
+                            <option value="€">€ (EUR)</option>
+                            <option value="£">£ (GBP)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Date & Reminder Alert Lead Time -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1 light:text-slate-700">Next Renewal Date *</label>
+                        <input type="date" id="subRenewalDate" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 light:bg-slate-50 light:border-slate-300 light:text-slate-900">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1 light:text-slate-700">Remind Me</label>
+                        <select id="subAlertLead" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 light:bg-slate-50 light:border-slate-300 light:text-slate-900">
+                            <option value="0">Same day</option>
+                            <option value="1">1 day before</option>
+                            <option value="3" selected>3 days before</option>
+                            <option value="7">1 week before</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Is Trial Checkbox -->
+                <div class="flex items-center space-x-2 pt-1">
+                    <input type="checkbox" id="subIsTrial" class="w-4 h-4 rounded text-brand-600 bg-slate-950 border-slate-800 focus:ring-brand-500">
+                    <label for="subIsTrial" class="text-xs text-slate-300 cursor-pointer light:text-slate-700">This is a Free Trial (needs cancellation before charge)</label>
+                </div>
+
+                <!-- Notes Input -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1 light:text-slate-700">Notes / Plan Details</label>
+                    <textarea id="subNotes" rows="2" placeholder="e.g. Standard 4K plan, shared with family" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-brand-500 light:bg-slate-50 light:border-slate-300 light:text-slate-900"></textarea>
+                </div>
+
+                <!-- Modal Actions -->
+                <div class="flex justify-end space-x-3 pt-3 border-t border-slate-800 light:border-slate-200">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors">Cancel</button>
+                    <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs px-5 py-2 rounded-xl shadow-lg transition-all">Save Subscription</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Backup / Import Data Modal -->
+    <div id="backupModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4 light:bg-white light:border-slate-200">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3 light:border-slate-200">
+                <h3 class="font-bold text-lg text-white light:text-slate-900">Backup & Restore</h3>
+                <button onclick="closeBackupModal()" class="text-slate-400 hover:text-white light:hover:text-slate-800">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-400 light:text-slate-600">
+                All subscription data is safely stored locally in your web browser. You can export a JSON backup file to transfer to another device or restore lost data.
+            </p>
+
+            <div class="space-y-3 pt-2">
+                <!-- Export Button -->
+                <button onclick="exportJSONData()" class="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold py-2.5 rounded-xl border border-slate-700 transition-colors light:bg-slate-100 light:text-slate-800 light:border-slate-300">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Export JSON Backup File</span>
+                </button>
+
+                <!-- Import File Button -->
+                <label class="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold py-2.5 rounded-xl border border-slate-700 transition-colors cursor-pointer light:bg-slate-100 light:text-slate-800 light:border-slate-300">
+                    <i class="fa-solid fa-upload"></i>
+                    <span>Import JSON Backup File</span>
+                    <input type="file" id="importFileInput" accept=".json" onchange="importJSONData(event)" class="hidden">
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Core Application State ---
+        let subscriptions = [];
+        let activeCurrency = '$';
+        let spendChartInstance = null;
+
+        // Preset Service Templates
+        const presets = [
+            { name: 'Netflix', category: 'Entertainment', cost: 15.49, icon: 'fa-tv', color: 'text-red-500' },
+            { name: 'Spotify', category: 'Entertainment', cost: 10.99, icon: 'fa-spotify', color: 'text-emerald-500' },
+            { name: 'ChatGPT Plus', category: 'Productivity', cost: 20.00, icon: 'fa-robot', color: 'text-teal-400' },
+            { name: 'iCloud+', category: 'Utilities', cost: 2.99, icon: 'fa-cloud', color: 'text-sky-400' },
+            { name: 'Amazon Prime', category: 'Entertainment', cost: 14.99, icon: 'fa-amazon', color: 'text-amber-400' },
+            { name: 'YouTube Premium', category: 'Entertainment', cost: 13.99, icon: 'fa-youtube', color: 'text-red-600' }
+        ];
+
+        // Category Configuration Styles
+        const categoryMap = {
+            'Entertainment': { icon: 'fa-film', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
+            'Productivity': { icon: 'fa-bolt', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+            'Utilities': { icon: 'fa-screwdriver-wrench', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+            'Health': { icon: 'fa-heart-pulse', color: 'bg-rose-500/10 text-rose-400 border-rose-500/20' },
+            'Work': { icon: 'fa-briefcase', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
+            'General': { icon: 'fa-cube', color: 'bg-slate-500/10 text-slate-400 border-slate-500/20' }
+        };
+
+        // Initialize App on DOM Load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadLocalStorageData();
+            renderPresetButtons();
+            checkNotificationStatus();
+            renderSubscriptions();
+        });
+
+        // Local Storage Persistence Handlers
+        function loadLocalStorageData() {
+            const savedSubs = localStorage.getItem('subpulse_data');
+            const savedCurrency = localStorage.getItem('subpulse_currency');
+            const savedTheme = localStorage.getItem('subpulse_theme');
+
+            if (savedSubs) {
+                try {
+                    subscriptions = JSON.parse(savedSubs);
+                } catch(e) {
+                    subscriptions = [];
+                }
+            } else {
+                // Populate default starter demo items if fresh app launch
+                subscriptions = [
+                    {
+                        id: 'demo-1',
+                        name: 'Netflix',
+                        category: 'Entertainment',
+                        cost: 15.49,
+                        currency: '$',
+                        cycle: 'Monthly',
+                        renewalDate: getRelativeDate(4), // 4 days from now
+                        alertLead: 3,
+                        isTrial: false,
+                        notes: 'Standard 1080p HD plan'
+                    },
+                    {
+                        id: 'demo-2',
+                        name: 'ChatGPT Plus',
+                        category: 'Productivity',
+                        cost: 20.00,
+                        currency: '$',
+                        cycle: 'Monthly',
+                        renewalDate: getRelativeDate(18),
+                        alertLead: 3,
+                        isTrial: false,
+                        notes: 'AI productivity subscription'
+                    },
+                    {
+                        id: 'demo-3',
+                        name: 'Adobe Creative Cloud',
+                        category: 'Work',
+                        cost: 29.99,
+                        currency: '$',
+                        cycle: 'Monthly',
+                        renewalDate: getRelativeDate(2),
+                        alertLead: 3,
+                        isTrial: true,
+                        notes: 'Remember to cancel free trial!'
+                    }
+                ];
+                saveToLocalStorage();
+            }
+
+            if (savedCurrency) {
+                activeCurrency = savedCurrency;
+                document.getElementById('globalCurrency').value = savedCurrency;
+            }
+
+            if (savedTheme === 'light') {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
+                document.getElementById('themeIcon').className = 'fa-solid fa-sun text-sm text-amber-500';
+            }
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('subpulse_data', JSON.stringify(subscriptions));
+            localStorage.setItem('subpulse_currency', activeCurrency);
+        }
+
+        function getRelativeDate(daysAhead) {
+            const date = new Date();
+            date.setDate(date.getDate() + daysAhead);
+            return date.toISOString().split('T')[0];
+        }
+
+        // --- STREAMING_CHUNK:Implementing UI Rendering & Subscription Cards Grid Logic... ---
+        function renderSubscriptions() {
+            const grid = document.getElementById('subscriptionsGrid');
+            const emptyState = document.getElementById('emptyState');
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+            const categoryFilter = document.getElementById('filterCategory').value;
+            const statusFilter = document.getElementById('filterStatus').value;
+
+            // Filter logic
+            const filtered = subscriptions.filter(sub => {
+                const matchesSearch = sub.name.toLowerCase().includes(searchQuery) || (sub.notes && sub.notes.toLowerCase().includes(searchQuery));
+                const matchesCategory = categoryFilter === 'ALL' || sub.category === categoryFilter;
+                
+                let matchesStatus = true;
+                const daysUntil = getDaysRemaining(sub.renewalDate);
+
+                if (statusFilter === 'UPCOMING') matchesStatus = daysUntil >= 0 && daysUntil <= 7;
+                if (statusFilter === 'TRIAL') matchesStatus = sub.isTrial;
+                if (statusFilter === 'MONTHLY') matchesStatus = sub.cycle === 'Monthly';
+                if (statusFilter === 'YEARLY') matchesStatus = sub.cycle === 'Yearly';
+
+                return matchesSearch && matchesCategory && matchesStatus;
+            });
+
+            // Update Statistics Dashboard
+            updateSummaryCards();
+            updateChart();
+
+            grid.innerHTML = '';
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+
+                filtered.forEach(sub => {
+                    const daysLeft = getDaysRemaining(sub.renewalDate);
+                    const catStyle = categoryMap[sub.category] || categoryMap['General'];
+                    
+                    // Renewal status badge evaluation
+                    let badgeHTML = '';
+                    if (sub.isTrial) {
+                        badgeHTML = `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">Free Trial</span>`;
+                    } else if (daysLeft <= 3 && daysLeft >= 0) {
+                        badgeHTML = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 badge-pulse">Renews in ${daysLeft === 0 ? 'Today' : daysLeft + 'd'}</span>`;
+                    } else if (daysLeft <= 7 && daysLeft >= 0) {
+                        badgeHTML = `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">${daysLeft} days left</span>`;
+                    }
+
+                    const cardHTML = `
+                        <div class="glass-card rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition-all group relative">
+                            <div>
+                                <!-- Top Bar Service & Category -->
+                                <div class="flex items-start justify-between gap-2 mb-3">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300 border border-slate-700/60 font-bold text-base light:bg-slate-100 light:border-slate-200 light:text-slate-700">
+                                            <i class="fa-solid ${catStyle.icon}"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-base text-white group-hover:text-brand-400 transition-colors light:text-slate-900">${escapeHTML(sub.name)}</h4>
+                                            <span class="inline-block px-2 py-0.5 text-[10px] rounded-md font-medium border ${catStyle.color}">
+                                                ${sub.category}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-1">
+                                        ${badgeHTML}
+                                    </div>
+                                </div>
+
+                                <!-- Cost and Cycle Details -->
+                                <div class="my-3 py-2 px-3 rounded-xl bg-slate-900/60 border border-slate-800/80 flex justify-between items-center light:bg-slate-50 light:border-slate-200">
+                                    <span class="text-xs text-slate-400 light:text-slate-500">${sub.cycle} Cost</span>
+                                    <span class="text-base font-extrabold text-white light:text-slate-900">${sub.currency}${parseFloat(sub.cost).toFixed(2)}</span>
+                                </div>
+
+                                <!-- Renewal Date Info -->
+                                <div class="text-xs space-y-1 text-slate-400 light:text-slate-600">
+                                    <div class="flex justify-between">
+                                        <span>Next Renewal:</span>
+                                        <span class="font-semibold text-slate-200 light:text-slate-800">${formatReadableDate(sub.renewalDate)}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Alert Lead Time:</span>
+                                        <span class="text-slate-300 light:text-slate-700">${sub.alertLead == 0 ? 'Same day' : sub.alertLead + ' days before'}</span>
+                                    </div>
+                                    ${sub.notes ? `<p class="text-[11px] text-slate-500 italic mt-2 border-t border-slate-800/60 pt-1 light:text-slate-500 light:border-slate-200">${escapeHTML(sub.notes)}</p>` : ''}
+                                </div>
+                            </div>
+
+                            <!-- Card Action Buttons -->
+                            <div class="flex items-center justify-end space-x-2 mt-4 pt-3 border-t border-slate-800/80 light:border-slate-200">
+                                <button onclick="editSubscription('${sub.id}')" class="p-1.5 text-xs text-slate-400 hover:text-brand-400 transition-colors" title="Edit">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <button onclick="deleteSubscription('${sub.id}')" class="p-1.5 text-xs text-slate-400 hover:text-rose-400 transition-colors" title="Delete">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    grid.insertAdjacentHTML('beforeend', cardHTML);
+                });
+            }
+        }
+
+        // --- STREAMING_CHUNK:Calculations & Chart Visualizer Logic... ---
+        function updateSummaryCards() {
+            let monthlyTotal = 0;
+            let activeNum = subscriptions.length;
+            let trialNum = 0;
+            let upcomingNum = 0;
+
+            subscriptions.forEach(sub => {
+                let cost = parseFloat(sub.cost) || 0;
+                if (sub.cycle === 'Yearly') {
+                    monthlyTotal += cost / 12;
+                } else {
+                    monthlyTotal += cost;
+                }
+
+                if (sub.isTrial) trialNum++;
+
+                const daysLeft = getDaysRemaining(sub.renewalDate);
+                if (daysLeft >= 0 && daysLeft <= 7) {
+                    upcomingNum++;
+                }
+            });
+
+            document.getElementById('totalMonthlySpend').innerText = `${activeCurrency}${monthlyTotal.toFixed(2)}`;
+            document.getElementById('yearlyEquivalent').innerText = `Equal to ${activeCurrency}${(monthlyTotal * 12).toFixed(2)} / year`;
+            document.getElementById('activeCount').innerText = activeNum;
+            document.getElementById('trialCount').innerText = `${trialNum} trial${trialNum === 1 ? '' : 's'} active`;
+            document.getElementById('upcomingCount').innerText = upcomingNum;
+
+            if (upcomingNum > 0) {
+                document.getElementById('nextRenewalText').innerText = `${upcomingNum} service(s) renew this week`;
+            } else {
+                document.getElementById('nextRenewalText').innerText = `No immediate renewals`;
+            }
+        }
+
+        function updateChart() {
+            const categories = Object.keys(categoryMap);
+            const spendByCategory = {};
+            categories.forEach(c => spendByCategory[c] = 0);
+
+            subscriptions.forEach(sub => {
+                let cost = parseFloat(sub.cost) || 0;
+                let monthlyCost = sub.cycle === 'Yearly' ? cost / 12 : cost;
+                if (spendByCategory[sub.category] !== undefined) {
+                    spendByCategory[sub.category] += monthlyCost;
+                } else {
+                    spendByCategory['General'] += monthlyCost;
+                }
+            });
+
+            const labels = categories.filter(c => spendByCategory[c] > 0);
+            const data = labels.map(c => spendByCategory[c]);
+            const colors = ['#a855f7', '#3b82f6', '#f59e0b', '#f43f5e', '#6366f1', '#64748b'];
+
+            const ctx = document.getElementById('spendChart').getContext('2d');
+            if (spendChartInstance) spendChartInstance.destroy();
+
+            if (data.length === 0) {
+                // Empty chart fallback state
+                spendChartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['No Data'],
+                        datasets: [{ data: [1], backgroundColor: ['#334155'] }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+            } else {
+                spendChartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            backgroundColor: colors.slice(0, labels.length),
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        cutout: '70%'
+                    }
+                });
+            }
+
+            // Render category breakdown list & legend badges
+            const progressContainer = document.getElementById('categoryProgressList');
+            const badgesContainer = document.getElementById('categoryBadges');
+            progressContainer.innerHTML = '';
+            badgesContainer.innerHTML = '';
+
+            const totalSpend = data.reduce((a, b) => a + b, 0);
+
+            labels.forEach((label, idx) => {
+                const amount = spendByCategory[label];
+                const pct = totalSpend > 0 ? ((amount / totalSpend) * 100).toFixed(0) : 0;
+                
+                // Add legend badge
+                badgesContainer.insertAdjacentHTML('beforeend', `
+                    <span class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-800 text-slate-300 light:bg-slate-200 light:text-slate-700">
+                        ${label}: ${activeCurrency}${amount.toFixed(2)} (${pct}%)
+                    </span>
+                `);
+
+                // Progress Bar Item
+                progressContainer.insertAdjacentHTML('beforeend', `
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="font-medium text-slate-300 light:text-slate-700">${label}</span>
+                            <span class="font-bold text-white light:text-slate-900">${activeCurrency}${amount.toFixed(2)}/mo (${pct}%)</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden light:bg-slate-200">
+                            <div class="h-full bg-brand-500 rounded-full" style="width: ${pct}%; background-color: ${colors[idx]}"></div>
+                        </div>
+                    </div>
+                `);
+            });
+        }
+
+        // --- STREAMING_CHUNK:Handling Subscriptions Modal & Forms... ---
+        function renderPresetButtons() {
+            const container = document.getElementById('presetButtons');
+            container.innerHTML = '';
+            presets.forEach(p => {
+                container.insertAdjacentHTML('beforeend', `
+                    <button type="button" onclick="applyPreset('${p.name}', '${p.category}', ${p.cost})" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium shrink-0 flex items-center space-x-1.5 border border-slate-700 transition-colors light:bg-slate-100 light:text-slate-800 light:border-slate-300">
+                        <i class="fa-solid ${p.icon} ${p.color}"></i>
+                        <span>${p.name}</span>
+                    </button>
+                `);
+            });
+        }
+
+        function applyPreset(name, category, cost) {
+            document.getElementById('subName').value = name;
+            document.getElementById('subCategory').value = category;
+            document.getElementById('subCost').value = cost;
+        }
+
+        function openModal(isEdit = false) {
+            document.getElementById('modalTitle').innerText = isEdit ? 'Edit Subscription' : 'Add New Subscription';
+            document.getElementById('subModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('subModal').classList.add('hidden');
+            document.getElementById('subForm').reset();
+            document.getElementById('subId').value = '';
+        }
+
+        function saveSubscription(e) {
+            e.preventDefault();
+
+            const id = document.getElementById('subId').value || 'sub-' + Date.now();
+            const name = document.getElementById('subName').value.trim();
+            const category = document.getElementById('subCategory').value;
+            const cycle = document.getElementById('subCycle').value;
+            const cost = parseFloat(document.getElementById('subCost').value);
+            const currency = document.getElementById('subCurrency').value;
+            const renewalDate = document.getElementById('subRenewalDate').value;
+            const alertLead = parseInt(document.getElementById('subAlertLead').value);
+            const isTrial = document.getElementById('subIsTrial').checked;
+            const notes = document.getElementById('subNotes').value.trim();
+
+            const existingIdx = subscriptions.findIndex(s => s.id === id);
+
+            const newSub = { id, name, category, cycle, cost, currency, renewalDate, alertLead, isTrial, notes };
+
+            if (existingIdx > -1) {
+                subscriptions[existingIdx] = newSub;
+            } else {
+                subscriptions.push(newSub);
+            }
+
+            saveToLocalStorage();
+            renderSubscriptions();
+            closeModal();
+            triggerSystemNotification(newSub);
+        }
+
+        function editSubscription(id) {
+            const sub = subscriptions.find(s => s.id === id);
+            if (!sub) return;
+
+            document.getElementById('subId').value = sub.id;
+            document.getElementById('subName').value = sub.name;
+            document.getElementById('subCategory').value = sub.category;
+            document.getElementById('subCycle').value = sub.cycle;
+            document.getElementById('subCost').value = sub.cost;
+            document.getElementById('subCurrency').value = sub.currency;
+            document.getElementById('subRenewalDate').value = sub.renewalDate;
+            document.getElementById('subAlertLead').value = sub.alertLead;
+            document.getElementById('subIsTrial').checked = sub.isTrial;
+            document.getElementById('subNotes').value = sub.notes || '';
+
+            openModal(true);
+        }
+
+        function deleteSubscription(id) {
+            if (confirm('Are you sure you want to delete this subscription?')) {
+                subscriptions = subscriptions.filter(s => s.id !== id);
+                saveToLocalStorage();
+                renderSubscriptions();
+            }
+        }
+
+        function updateCurrencySymbol(val) {
+            activeCurrency = val;
+            subscriptions = subscriptions.map(s => ({ ...s, currency: val }));
+            document.getElementById('subCurrency').value = val;
+            saveToLocalStorage();
+            renderSubscriptions();
+        }
+
+        // --- STREAMING_CHUNK:Web Notification API Integration... ---
+        function checkNotificationStatus() {
+            if ('Notification' in window) {
+                if (Notification.permission === 'default') {
+                    document.getElementById('notificationBanner').classList.remove('hidden');
+                } else {
+                    document.getElementById('notificationBanner').classList.add('hidden');
+                }
+            }
+        }
+
+        function requestNotificationPermission() {
+            if ('Notification' in window) {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        document.getElementById('notificationBanner').classList.add('hidden');
+                        new Notification('SubPulse Notifications Enabled', {
+                            body: 'You will now receive timely reminders before your subscriptions renew!',
+                            icon: 'https://cdn-icons-png.flaticon.com/512/3602/3602145.png'
+                        });
+                    }
+                });
+            }
+        }
+
+        function triggerSystemNotification(sub) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                const daysLeft = getDaysRemaining(sub.renewalDate);
+                if (daysLeft <= sub.alertLead) {
+                    new Notification(`Renewal Alert: ${sub.name}`, {
+                        body: `${sub.name} renews on ${sub.renewalDate} (${sub.currency}${sub.cost}).`,
+                        icon: 'https://cdn-icons-png.flaticon.com/512/3602/3602145.png'
+                    });
+                }
+            }
+        }
+
+        // --- STREAMING_CHUNK:Backup Data Export/Import Functions & Utilities... ---
+        function openBackupModal() {
+            document.getElementById('backupModal').classList.remove('hidden');
+        }
+
+        function closeBackupModal() {
+            document.getElementById('backupModal').classList.add('hidden');
+        }
+
+        function exportJSONData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(subscriptions, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `subpulse_backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importJSONData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (Array.isArray(importedData)) {
+                        subscriptions = importedData;
+                        saveToLocalStorage();
+                        renderSubscriptions();
+                        closeBackupModal();
+                        alert('Subscription data imported successfully!');
+                    } else {
+                        alert('Invalid data format.');
+                    }
+                } catch(err) {
+                    alert('Error parsing JSON backup file.');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.contains('dark');
+            if (isDark) {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
+                localStorage.setItem('subpulse_theme', 'light');
+                document.getElementById('themeIcon').className = 'fa-solid fa-sun text-sm text-amber-500';
+            } else {
+                document.documentElement.classList.remove('light');
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('subpulse_theme', 'dark');
+                document.getElementById('themeIcon').className = 'fa-solid fa-moon text-sm';
+            }
+            renderSubscriptions();
+        }
+
+        // Helpers
+        function getDaysRemaining(targetDateStr) {
+            const target = new Date(targetDateStr);
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            target.setHours(0, 0, 0, 0);
+            const diffTime = target - now;
+            return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        function formatReadableDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            const options = { month: 'short', day: 'numeric', year: 'numeric' };
+            return new Date(dateStr).toLocaleDateString('en-US', options);
+        }
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+    </script>
+</body>
+</html>
